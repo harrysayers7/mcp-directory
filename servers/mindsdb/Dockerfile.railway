@@ -1,5 +1,5 @@
-# Use Python 3.11 slim image as base
-FROM python:3.11-slim
+# Railway-optimized Dockerfile for MindsDB MCP Server
+FROM python:3.11-slim as base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -7,37 +7,33 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Set work directory
-WORKDIR /app
-
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /app
 
 # Copy requirements first for better caching
 COPY pyproject.toml ./
-
-# Install Python dependencies
 RUN pip install --no-cache-dir -e .
 
 # Copy source code
 COPY src/ ./src/
 COPY README.md ./
 
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash mindsdb && \
-    chown -R mindsdb:mindsdb /app
-USER mindsdb
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash app \
+    && chown -R app:app /app
+USER app
+
+# Expose port (Railway will set PORT env var)
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import asyncio; from mindsdb_mcp_server.main import main; asyncio.run(main())" || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
 
-# Expose port (if needed for HTTP interface)
-# Expose port (Railway will set PORT env var)
-EXPOSE ${PORT:-8000}
-
-# Default command
+# Start the application
 CMD ["python", "-m", "mindsdb_mcp_server.main"]

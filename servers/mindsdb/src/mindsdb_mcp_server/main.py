@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import os
 import sys
 from typing import Any, Dict, List, Optional
 
@@ -394,4 +395,13 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Check if running on Railway (has PORT env var)
+    if os.getenv("PORT"):
+        # Run web server for Railway deployment
+        from .web_server import app
+        import uvicorn
+        port = int(os.getenv("PORT", 8000))
+        uvicorn.run(app, host="0.0.0.0", port=port)
+    else:
+        # Run MCP server directly for local development
+        asyncio.run(main())

@@ -1,0 +1,19 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "python -m mindsdb_mcp_server.main"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[environment]
+# Railway will automatically set these from environment variables
+MINDSDB_API_KEY = "${{MINDSDB_API_KEY}}"
+MINDSDB_HOST = "${{MINDSDB_HOST}}"
+MINDSDB_PORT = "${{MINDSDB_PORT}}"
+REDIS_HOST = "${{REDIS_HOST}}"
+REDIS_PORT = "${{REDIS_PORT}}"
+LOG_LEVEL = "${{LOG_LEVEL}}"
