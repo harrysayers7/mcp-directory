@@ -1,0 +1,99 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcp-common"
+version = "0.1.0"
+description = "Shared utilities and patterns for MCP servers"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "MCP Directory Team", email = "team@mcp-directory.dev"},
+]
+keywords = ["mcp", "fastmcp", "utilities", "common"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+dependencies = [
+    "fastmcp>=2.12.0",
+    "pydantic>=2.5.0",
+    "httpx>=0.25.0",
+    "structlog>=23.2.0",
+    "python-dotenv>=1.0.0",
+    "redis>=5.0.0",
+    "cryptography>=41.0.0",
+    "jwt>=1.3.1",
+    "tenacity>=8.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/mcp-directory"
+Repository = "https://github.com/your-org/mcp-directory"
+Issues = "https://github.com/your-org/mcp-directory/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mcp_common"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+select = [
+    "E", "W", "F", "I", "B", "C4", "UP", "ARG001", "SIM", "TCH", "PIE", "TID", "Q", "RUF"
+]
+ignore = [
+    "E501", "B008", "C901", "W191", "E203", "B904"
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/**/*.py" = ["S101", "ARG", "FBT", "PLR2004", "S106", "S108"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=mcp_common",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-fail-under=90",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

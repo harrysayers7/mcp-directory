@@ -1,0 +1,165 @@
+# Pre-commit hooks for MCP Directory monorepo
+# See https://pre-commit.com for more information
+
+repos:
+  # Ruff - Fast Python linter and formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.0
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # MyPy - Static type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.7.0
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-requests, types-python-dateutil]
+        args: [--ignore-missing-imports]
+
+  # Security scanning
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: [--baseline, .secrets.baseline]
+
+  # TruffleHog - Secret scanning
+  - repo: https://github.com/trufflesecurity/trufflehog
+    rev: v3.63.0
+    hooks:
+      - id: trufflehog
+        args: [--no-verification, --regex]
+
+  # Bandit - Security linting
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        args: [-r, libs/, servers/, -f, json, -o, bandit-report.json]
+        exclude: ^tests/
+
+  # Safety - Dependency vulnerability scanning
+  - repo: https://github.com/Lucas-C/pre-commit-hooks-safety
+    rev: v1.3.2
+    hooks:
+      - id: safety
+        args: [--short-report]
+
+  # General file checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # Basic file checks
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--unsafe]
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      
+      # Python-specific checks
+      - id: check-ast
+      - id: check-docstring-first
+      - id: debug-statements
+      - id: name-tests-test
+        args: [--pytest-test-first]
+      
+      # Security checks
+      - id: check-merge-conflict
+      - id: no-commit-to-branch
+        args: [--branch, main, --branch, master]
+      
+      # Docker checks
+      - id: check-dockerfile
+        files: \.dockerfile$
+
+  # Dockerfile linting
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint-docker
+        args: [--ignore, DL3008, --ignore, DL3009]
+
+  # YAML formatting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        types: [yaml]
+        exclude: ^\.github/
+
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.37.0
+    hooks:
+      - id: markdownlint
+        args: [--fix, --ignore, MD013, MD033, MD041]
+
+  # License header check
+  - repo: https://github.com/Lucas-C/pre-commit-hooks
+    rev: v1.5.4
+    hooks:
+      - id: insert-license
+        args: [--license-filepath, LICENSE_HEADER.txt, --comment-style, #]
+
+  # Commit message linting
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.13.0
+    hooks:
+      - id: commitizen
+
+  # Test discovery
+  - repo: local
+    hooks:
+      - id: pytest-check
+        name: pytest-check
+        entry: pytest
+        language: system
+        pass_filenames: false
+        always_run: true
+        args: [--collect-only, -q]
+
+  # Custom hooks for MCP Directory
+  - repo: local
+    hooks:
+      # Check that all servers have required files
+      - id: check-server-structure
+        name: check-server-structure
+        entry: python scripts/check_server_structure.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      # Validate Docker configurations
+      - id: validate-docker-configs
+        name: validate-docker-configs
+        entry: python scripts/validate_docker_configs.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      # Check for TODO/FIXME comments
+      - id: check-todos
+        name: check-todos
+        entry: python scripts/check_todos.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+# Configuration for specific hooks
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit.com hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: [trufflehog, bandit, safety]  # Skip heavy security scans in CI
+  submodules: false

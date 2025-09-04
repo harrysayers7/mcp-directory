@@ -1,0 +1,372 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.11"
+  UV_VERSION: "0.1.0"
+
+jobs:
+  # Security and quality checks
+  security:
+    name: Security & Quality Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install UV
+        run: pip install uv
+
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+
+      - name: Run pre-commit hooks
+        uses: pre-commit/action@v3.0.0
+        with:
+          extra_args: --all-files --hook-stage manual
+
+      - name: Run security scans
+        run: |
+          # TruffleHog secret scanning
+          trufflehog filesystem . --no-verification --regex
+          
+          # Bandit security linting
+          bandit -r libs/ servers/ -f json -o bandit-report.json
+          
+          # Safety dependency check
+          safety check --json --output safety-report.json
+
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: security-reports
+          path: |
+            bandit-report.json
+            safety-report.json
+
+  # Linting and type checking
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install UV
+        run: pip install uv
+
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+
+      - name: Run Ruff linter
+        run: |
+          ruff check libs/ servers/ --output-format=github
+          ruff format --check libs/ servers/
+
+      - name: Run MyPy type checker
+        run: |
+          mypy libs/ servers/
+
+  # Unit tests
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+        server: ["notion", "github", "supabase", "mindsdb"]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+      # MindsDB service for integration tests
+      mindsdb:
+        image: mindsdb/mindsdb:latest
+        env:
+          MINDSDB_APIS: http,mysql,mongodb,postgres,mcp
+          MINDSDB_MCP_ACCESS_TOKEN: test-token
+        options: >-
+          --health-cmd "curl -f http://localhost:47334/api/status || exit 1"
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 5
+        ports:
+          - 47334:47334  # HTTP API
+          - 47335:47335  # MySQL
+          - 47336:47336  # MongoDB
+          - 47337:47337  # MCP
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install UV
+        run: pip install uv
+
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+
+      - name: Run tests for ${{ matrix.server }}
+        env:
+          MINDSDB_API_KEY: test-key
+          MINDSDB_HOST: http://localhost
+          MINDSDB_PORT: 47334
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          LOG_LEVEL: INFO
+        run: |
+          pytest servers/${{ matrix.server }}/tests/ \
+            --cov=servers/${{ matrix.server }} \
+            --cov=libs/mcp_common \
+            --cov-report=xml \
+            --cov-report=html \
+            --junitxml=test-results-${{ matrix.server }}.xml
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: ${{ matrix.server }}
+          name: ${{ matrix.server }}-coverage
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-results-${{ matrix.server }}
+          path: |
+            test-results-${{ matrix.server }}.xml
+            htmlcov/
+
+  # Integration tests
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [security, lint, test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+      # MindsDB service for integration tests
+      mindsdb:
+        image: mindsdb/mindsdb:latest
+        env:
+          MINDSDB_APIS: http,mysql,mongodb,postgres,mcp
+          MINDSDB_MCP_ACCESS_TOKEN: test-token
+        options: >-
+          --health-cmd "curl -f http://localhost:47334/api/status || exit 1"
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 5
+        ports:
+          - 47334:47334  # HTTP API
+          - 47335:47335  # MySQL
+          - 47336:47336  # MongoDB
+          - 47337:47337  # MCP
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install UV
+        run: pip install uv
+
+      - name: Install dependencies
+        run: |
+          uv sync --dev
+
+      - name: Run integration tests
+        env:
+          MINDSDB_API_KEY: test-key
+          MINDSDB_HOST: http://localhost
+          MINDSDB_PORT: 47334
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          LOG_LEVEL: INFO
+        run: |
+          pytest tests/integration/ \
+            --cov=libs \
+            --cov=servers \
+            --cov-report=xml \
+            --cov-report=html \
+            --junitxml=integration-test-results.xml
+
+      - name: Upload integration test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: integration-test-results
+          path: |
+            integration-test-results.xml
+            htmlcov/
+
+  # Build Docker images
+  build:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [security, lint, test]
+    if: github.event_name == 'push'
+    
+    strategy:
+      matrix:
+        server: ["notion", "github", "supabase", "mindsdb"]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_USERNAME }}/mcp-${{ matrix.server }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: servers/${{ matrix.server }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Deploy to staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build, integration]
+    if: github.ref == 'refs/heads/develop'
+    environment: staging
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "Deploying to staging environment..."
+          # Add your deployment commands here
+          # Example: kubectl apply -f k8s/staging/
+
+  # Deploy to production
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, integration]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to production
+        run: |
+          echo "Deploying to production environment..."
+          # Add your deployment commands here
+          # Example: kubectl apply -f k8s/production/
+
+  # Notify on failure
+  notify-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [security, lint, test, build, integration]
+    if: failure()
+    
+    steps:
+      - name: Notify failure
+        run: |
+          echo "CI/CD pipeline failed. Please check the logs."
+          # Add your notification logic here
+          # Example: Send Slack notification, email, etc.

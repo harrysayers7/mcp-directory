@@ -1,0 +1,247 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcp-directory"
+version = "0.1.0"
+description = "A comprehensive monorepo of Model Context Protocol (MCP) servers built with FastMCP"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "MCP Directory Team", email = "team@mcp-directory.dev"},
+]
+keywords = ["mcp", "fastmcp", "ai", "agents", "servers"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "fastmcp>=2.12.0",
+    "pydantic>=2.5.0",
+    "httpx>=0.25.0",
+    "structlog>=23.2.0",
+    "python-dotenv>=1.0.0",
+    "uvicorn[standard]>=0.24.0",
+    "notion-client>=2.5.0",
+    "cryptography>=45.0.7",
+    "email-validator>=2.3.0",
+    "pyjwt>=2.10.1",
+    "pydantic-settings>=2.10.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "pytest-xdist>=3.3.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+    "pre-commit>=3.5.0",
+    "trufflehog>=2.2.1",
+    "semgrep>=1.45.0",
+    "bandit>=1.7.0",
+    "safety>=2.3.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "flake8>=6.0.0",
+    "mypy-extensions>=1.0.0",
+    "types-requests>=2.31.0",
+    "types-python-dateutil>=2.8.0",
+]
+
+notion = [
+    "notion-client>=2.2.0",
+    "python-dateutil>=2.8.0",
+]
+
+github = [
+    "PyGithub>=1.59.0",
+    "python-dateutil>=2.8.0",
+]
+
+supabase = [
+    "supabase>=2.0.0",
+    "postgrest>=0.13.0",
+    "realtime>=1.0.0",
+]
+
+all = [
+    "mcp-directory[notion,github,supabase]",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/mcp-directory"
+Documentation = "https://mcp-directory.dev"
+Repository = "https://github.com/your-org/mcp-directory"
+Issues = "https://github.com/your-org/mcp-directory/issues"
+Changelog = "https://github.com/your-org/mcp-directory/blob/main/CHANGELOG.md"
+
+[project.scripts]
+mcp-notion = "servers.notion.main:main"
+mcp-github = "servers.github.main:main"
+mcp-supabase = "servers.supabase.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["libs", "servers"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/libs",
+    "/servers",
+    "/docs",
+    "/.cursor",
+    "/.github",
+    "/docker",
+    "/scripts",
+    "/tests",
+    "/pyproject.toml",
+    "/README.md",
+    "/LICENSE",
+    "/.pre-commit-config.yaml",
+    "/docker-compose.yml",
+    "/.env.example",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+    "ARG001", # unused-function-args
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "PIE", # flake8-pie
+    "TID", # flake8-tidy-imports
+    "Q", # flake8-quotes
+    "RUF", # Ruff-specific rules
+]
+ignore = [
+    "E501", # line too long, handled by black
+    "B008", # do not perform function calls in argument defaults
+    "C901", # too complex
+    "W191", # indentation contains tabs
+    "E203", # whitespace before ':'
+    "B904", # Allow raising exceptions without from e
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/**/*.py" = ["S101", "ARG", "FBT", "PLR2004", "S106", "S108"]
+
+[tool.ruff.isort]
+known-first-party = ["mcp_common", "servers"]
+
+[tool.ruff.flake8-quotes]
+inline-quotes = "double"
+multiline-quotes = "double"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+    "notion_client.*",
+    "github.*",
+    "supabase.*",
+    "postgrest.*",
+    "realtime.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=libs",
+    "--cov=servers",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+    "--cov-fail-under=90",
+]
+testpaths = ["tests", "servers", "libs"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow tests",
+    "notion: Notion-specific tests",
+    "github: GitHub-specific tests",
+    "supabase: Supabase-specific tests",
+]
+
+[tool.coverage.run]
+source = ["libs", "servers"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/migrations/*",
+    "*/alembic/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", "venv", ".venv"]
+skips = ["B101", "B601"]
+
+[tool.semgrep]
+config = [
+    "p/security-audit",
+    "p/owasp-top-ten",
+    "p/python",
+    "p/security",
+]
+
+[tool.trufflehog]
+base = "main"
+regex = true
+no-verification = true

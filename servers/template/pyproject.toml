@@ -1,0 +1,110 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mcp-template"
+version = "0.1.0"
+description = "Template MCP server - replace with your service description"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "MCP Directory Team", email = "team@mcp-directory.dev"},
+]
+keywords = ["mcp", "fastmcp", "template", "api"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "fastmcp>=2.12.0",
+    "mcp-common>=0.1.0",
+    "pydantic>=2.5.0",
+    "httpx>=0.25.0",
+    "structlog>=23.2.0",
+    "python-dotenv>=1.0.0",
+    "uvicorn[standard]>=0.24.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "ruff>=0.1.0",
+    "mypy>=1.7.0",
+    "pre-commit>=3.5.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/your-org/mcp-directory"
+Repository = "https://github.com/your-org/mcp-directory"
+Issues = "https://github.com/your-org/mcp-directory/issues"
+
+[project.scripts]
+mcp-template = "servers.template.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["template_server"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+select = [
+    "E", "W", "F", "I", "B", "C4", "UP", "ARG001", "SIM", "TCH", "PIE", "TID", "Q", "RUF"
+]
+ignore = [
+    "E501", "B008", "C901", "W191", "E203", "B904"
+]
+
+[tool.ruff.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/**/*.py" = ["S101", "ARG", "FBT", "PLR2004", "S106", "S108"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+show_error_codes = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=template_server",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-fail-under=90",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow tests",
+    "template: Template-specific tests",
+]

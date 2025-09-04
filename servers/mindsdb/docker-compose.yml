@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  mindsdb-mcp-server:
+    build: .
+    container_name: mindsdb-mcp-server
+    environment:
+      - MINDSDB_API_KEY=${MINDSDB_API_KEY}
+      - MINDSDB_HOST=${MINDSDB_HOST:-https://cloud.mindsdb.com}
+      - MINDSDB_PORT=${MINDSDB_PORT:-47334}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+    depends_on:
+      - redis
+    networks:
+      - mindsdb-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import asyncio; from mindsdb_mcp_server.main import main; asyncio.run(main())"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: mindsdb-mcp-redis
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    networks:
+      - mindsdb-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Optional: MindsDB instance for local development
+  mindsdb:
+    image: mindsdb/mindsdb:latest
+    container_name: mindsdb-local
+    environment:
+      - MINDSDB_APIS=http,mysql,mongodb,postgres,mcp
+      - MINDSDB_MCP_ACCESS_TOKEN=${MINDSDB_MCP_ACCESS_TOKEN:-dev-token}
+    ports:
+      - "47334:47334"  # HTTP API
+      - "47335:47335"  # MySQL
+      - "47336:47336"  # MongoDB
+      - "47337:47337"  # MCP
+      - "55432:55432"  # PostgreSQL
+    volumes:
+      - mindsdb_data:/var/lib/mindsdb
+    networks:
+      - mindsdb-network
+    restart: unless-stopped
+    profiles:
+      - local
+
+volumes:
+  redis_data:
+    driver: local
+  mindsdb_data:
+    driver: local
+
+networks:
+  mindsdb-network:
+    driver: bridge

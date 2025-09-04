@@ -1,0 +1,486 @@
+# MCP Development Guidelines
+
+## Overview
+
+This document provides comprehensive guidelines for developing MCP (Model Context Protocol) servers in the MCP Directory monorepo using FastMCP.
+
+## Architecture Principles
+
+### Monorepo Structure
+- **Servers**: Each MCP server lives in `servers/<name>/` with its own `pyproject.toml`
+- **Shared Library**: Common utilities in `libs/mcp_common/` for reuse across servers
+- **Modularity**: Each server is self-contained but can import shared utilities
+- **Consistency**: All servers follow the same patterns and conventions
+
+### FastMCP Integration
+- Use `@mcp.tool` decorator for tool functions
+- Use `@mcp.resource` decorator for resource access
+- Use `@mcp.prompt` decorator for AI prompts
+- Always include `Context` parameter for logging and client interaction
+
+## Development Standards
+
+### Code Organization
+```
+servers/my-server/
+├── main.py              # Main server implementation
+├── pyproject.toml       # Server dependencies
+├── Dockerfile          # Container configuration
+├── tests/              # Test files
+│   ├── unit/           # Unit tests
+│   ├── integration/    # Integration tests
+│   └── fixtures/       # Test fixtures
+└── README.md           # Server documentation
+```
+
+### Import Patterns
+```python
+# Always import from mcp_common for shared utilities
+from mcp_common import (
+    get_config,
+    get_logger,
+    MCPError,
+    ValidationError,
+    BaseMCPTool,
+)
+from mcp_common.models import (
+    PaginationParams,
+    ToolRequest,
+    ToolResponse,
+)
+```
+
+### Error Handling
+```python
+from mcp_common.exceptions import (
+    MCPError,
+    ValidationError,
+    ExternalServiceError,
+    NotFoundError,
+)
+
+@mcp.tool
+async def my_tool(param: str, ctx: Context | None = None) -> dict:
+    try:
+        # Tool implementation
+        return {"success": True, "data": result}
+    except ValidationError as e:
+        raise e  # Re-raise validation errors
+    except ExternalServiceError as e:
+        logger.error(f"External service error: {e}")
+        raise e
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        raise MCPError(f"Tool execution failed: {str(e)}")
+```
+
+### Logging Patterns
+```python
+from mcp_common import get_logger
+
+logger = get_logger(__name__)
+
+@mcp.tool
+async def my_tool(param: str, ctx: Context | None = None) -> dict:
+    if ctx:
+        await ctx.info(f"Starting tool execution with param: {param}")
+    
+    logger.info("Tool execution started", extra={"param": param})
+    
+    # Tool logic here
+    
+    if ctx:
+        await ctx.info("Tool execution completed")
+    
+    return {"success": True, "data": result}
+```
+
+## Tool Development
+
+### Tool Function Signature
+```python
+@mcp.tool
+async def tool_name(
+    param1: str,
+    param2: int = 10,
+    param3: dict | None = None,
+    ctx: Context | None = None,
+) -> dict:
+    """Tool description.
+    
+    Args:
+        param1: Description of param1
+        param2: Description of param2 (default: 10)
+        param3: Description of param3 (optional)
+        ctx: MCP context for logging and client interaction
+        
+    Returns:
+        Dictionary containing tool result
+    """
+```
+
+### Input Validation
+```python
+from mcp_common import validate_input, ValidationError
+
+@mcp.tool
+async def my_tool(param: str, ctx: Context | None = None) -> dict:
+    # Validate required parameters
+    if not param.strip():
+        raise ValidationError("Parameter cannot be empty", field="param")
+    
+    # Validate parameter types and constraints
+    if len(param) > 100:
+        raise ValidationError("Parameter too long", field="param", value=param)
+    
+    # Use validation helper
+    validated_param = validate_input(param, str, min_length=1, max_length=100)
+```
+
+### Response Format
+```python
+@mcp.tool
+async def my_tool(param: str, ctx: Context | None = None) -> dict:
+    try:
+        # Tool logic
+        result = perform_operation(param)
+        
+        return {
+            "success": True,
+            "data": result,
+            "message": "Operation completed successfully",
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Operation failed",
+        }
+```
+
+## Resource Development
+
+### Resource Function Signature
+```python
+@mcp.resource
+async def resource_name(uri: str, ctx: Context | None = None) -> str:
+    """Resource description.
+    
+    Args:
+        uri: Resource URI (e.g., 'service://type/id')
+        ctx: MCP context for logging and client interaction
+        
+    Returns:
+        Resource content as string
+    """
+```
+
+### URI Parsing
+```python
+@mcp.resource
+async def my_resource(uri: str, ctx: Context | None = None) -> str:
+    # Parse URI
+    if not uri.startswith("myservice://"):
+        raise ValidationError("Invalid URI format. Expected 'myservice://type/id'")
+    
+    parts = uri.split("/")
+    if len(parts) < 3:
+        raise ValidationError("Invalid URI format. Expected 'myservice://type/id'")
+    
+    resource_type = parts[2]
+    resource_id = parts[3] if len(parts) > 3 else ""
+    
+    if not resource_id:
+        raise ValidationError("Resource ID is required")
+```
+
+## Prompt Development
+
+### Prompt Function Signature
+```python
+@mcp.prompt
+async def prompt_name(ctx: Context | None = None) -> str:
+    """Prompt description.
+    
+    Args:
+        ctx: MCP context for logging and client interaction
+        
+    Returns:
+        Prompt text
+    """
+```
+
+### Prompt Content
+```python
+@mcp.prompt
+async def my_prompt(ctx: Context | None = None) -> str:
+    return """
+# My Service Help
+
+This server provides tools for interacting with My Service.
+
+## Available Tools
+
+### tool_name(param1, param2=default)
+Description of the tool.
+
+### another_tool(param)
+Description of another tool.
+
+## Examples
+
+1. Basic usage:
+   ```
+   tool_name("example")
+   ```
+
+2. Advanced usage:
+   ```
+   another_tool("complex_example")
+   ```
+"""
+```
+
+## Configuration Management
+
+### Environment Variables
+```python
+from mcp_common import get_config
+
+config = get_config()
+
+# Access configuration values
+api_key = os.getenv("MY_SERVICE_API_KEY")
+if not api_key:
+    raise ConfigurationError("MY_SERVICE_API_KEY not configured")
+```
+
+### Service Configuration
+```python
+# In server's main.py
+def get_service_client():
+    """Get or create service client."""
+    global service_client
+    if service_client is None:
+        api_key = os.getenv("MY_SERVICE_API_KEY")
+        if not api_key:
+            raise ConfigurationError("Service API key not configured")
+        service_client = MyServiceClient(api_key=api_key)
+    return service_client
+```
+
+## Testing Guidelines
+
+### Unit Tests
+```python
+import pytest
+from unittest.mock import Mock, patch
+from servers.my_server.main import my_tool
+
+@pytest.mark.asyncio
+async def test_my_tool_success():
+    """Test successful tool execution."""
+    result = await my_tool("test_param")
+    
+    assert result["success"] is True
+    assert "data" in result
+    assert result["message"] == "Operation completed successfully"
+
+@pytest.mark.asyncio
+async def test_my_tool_validation_error():
+    """Test validation error handling."""
+    with pytest.raises(ValidationError):
+        await my_tool("")  # Empty parameter should raise ValidationError
+```
+
+### Integration Tests
+```python
+import pytest
+from httpx import AsyncClient
+from servers.my_server.main import mcp
+
+@pytest.mark.asyncio
+async def test_tool_integration():
+    """Test tool integration with MCP server."""
+    async with AsyncClient(app=mcp.app, base_url="http://test") as client:
+        response = await client.post("/tools/my_tool", json={"param": "test"})
+        assert response.status_code == 200
+        assert response.json()["success"] is True
+```
+
+## Security Best Practices
+
+### Input Sanitization
+```python
+import html
+import re
+
+def sanitize_input(input_str: str) -> str:
+    """Sanitize user input."""
+    # Remove potentially dangerous characters
+    sanitized = re.sub(r'[<>"\']', '', input_str)
+    # HTML escape
+    sanitized = html.escape(sanitized)
+    return sanitized.strip()
+```
+
+### Secret Management
+```python
+import os
+from mcp_common import ConfigurationError
+
+def get_api_key() -> str:
+    """Get API key from environment."""
+    api_key = os.getenv("MY_SERVICE_API_KEY")
+    if not api_key:
+        raise ConfigurationError("API key not configured")
+    return api_key
+```
+
+### Rate Limiting
+```python
+from mcp_common import RateLimiter, RateLimitError
+
+rate_limiter = RateLimiter(requests=100, window=60)
+
+@mcp.tool
+async def my_tool(param: str, ctx: Context | None = None) -> dict:
+    if not rate_limiter.allow_request():
+        raise RateLimitError("Rate limit exceeded")
+    
+    # Tool implementation
+```
+
+## Performance Optimization
+
+### Async Operations
+```python
+import asyncio
+import httpx
+
+@mcp.tool
+async def my_tool(param: str, ctx: Context | None = None) -> dict:
+    async with httpx.AsyncClient() as client:
+        # Use async HTTP client
+        response = await client.get(f"https://api.example.com/data/{param}")
+        return {"success": True, "data": response.json()}
+```
+
+### Caching
+```python
+from functools import lru_cache
+import redis
+from mcp_common import get_config
+
+config = get_config()
+redis_client = redis.from_url(config.get_redis_url())
+
+@lru_cache(maxsize=128)
+def expensive_operation(param: str) -> str:
+    """Expensive operation with in-memory caching."""
+    return perform_expensive_operation(param)
+
+async def cached_operation(param: str) -> str:
+    """Operation with Redis caching."""
+    cache_key = f"operation:{param}"
+    cached_result = redis_client.get(cache_key)
+    
+    if cached_result:
+        return cached_result.decode()
+    
+    result = perform_operation(param)
+    redis_client.setex(cache_key, 3600, result)  # Cache for 1 hour
+    return result
+```
+
+## Documentation Requirements
+
+### Server README
+Each server must have a comprehensive README.md with:
+- Purpose and features
+- Installation instructions
+- Configuration options
+- API documentation
+- Usage examples
+- Troubleshooting guide
+
+### Code Documentation
+- All public functions must have docstrings
+- Complex logic must be commented
+- Type hints are required for all parameters and return values
+- Examples in docstrings for complex functions
+
+## Deployment Considerations
+
+### Docker Configuration
+- Use multi-stage builds for smaller images
+- Run as non-root user
+- Include health checks
+- Use .dockerignore to exclude unnecessary files
+
+### Environment Configuration
+- All configuration through environment variables
+- No secrets in code or configuration files
+- Use different configurations for different environments
+
+### Monitoring
+- Include structured logging
+- Add metrics collection
+- Implement health check endpoints
+- Use correlation IDs for request tracing
+
+## Common Patterns
+
+### Tool with Pagination
+```python
+@mcp.tool
+async def list_items(
+    page: int = 1,
+    page_size: int = 20,
+    ctx: Context | None = None,
+) -> dict:
+    pagination = PaginationParams(page=page, page_size=page_size)
+    
+    # Fetch data with pagination
+    items = fetch_items(offset=pagination.offset, limit=pagination.page_size)
+    total = count_items()
+    
+    paginated_response = PaginatedResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
+    
+    return {
+        "success": True,
+        "data": paginated_response.dict(),
+    }
+```
+
+### Tool with External API
+```python
+@mcp.tool
+async def external_api_call(
+    endpoint: str,
+    params: dict | None = None,
+    ctx: Context | None = None,
+) -> dict:
+    try:
+        client = get_external_client()
+        response = await client.get(endpoint, params=params or {})
+        response.raise_for_status()
+        
+        return {
+            "success": True,
+            "data": response.json(),
+        }
+    except httpx.HTTPStatusError as e:
+        raise ExternalServiceError(
+            f"External API error: {e.response.status_code}",
+            service="external_api",
+            status_code=e.response.status_code,
+        )
+```
+
+This guide ensures consistent, secure, and maintainable MCP server development across the monorepo.
